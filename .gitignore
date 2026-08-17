@@ -1,0 +1,10 @@
+# Godot 4 generated / imported cache (regenerated on import)
+/.godot/
+
+# Local web export output (CI builds this fresh)
+/build/
+
+# Editor / OS cruft
+*.tmp
+.DS_Store
+.import/
