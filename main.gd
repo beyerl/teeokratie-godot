@@ -21,8 +21,8 @@ var walking := false
 var facing_right := false
 
 var don: AnimatedSprite2D
-const DON_FEET := Vector2(82, 150)
-const DON_SCALE := 0.85
+const DON_FEET := Vector2(80, 160)
+const DON_SCALE := 0.9
 
 var hotspots: Array = []
 var pending_action := {}          # {verb, hs} to run after walking over
@@ -34,6 +34,7 @@ var seg: Array = []
 var seg_ip := 0
 var in_dialogue := false
 var awaiting_menu := false
+var line_timer := 0.0
 
 # UI
 var speech: Label
@@ -54,7 +55,7 @@ func _ready() -> void:
 	var outside := Sprite2D.new()
 	outside.texture = load("res://assets/window_outside.png")
 	outside.centered = false
-	outside.position = Vector2(103, 68)
+	outside.position = Vector2(110, 70)
 	world.add_child(outside)
 
 	var bg := Sprite2D.new()
@@ -66,7 +67,8 @@ func _ready() -> void:
 	var doc := Sprite2D.new()
 	doc.texture = load("res://assets/examregulations.png")
 	doc.centered = false
-	doc.position = Vector2(250, 66)
+	doc.scale = Vector2(1.3, 1.3)
+	doc.position = Vector2(248, 70)
 	world.add_child(doc)
 
 	don = _make_don()
@@ -80,7 +82,7 @@ func _ready() -> void:
 	var desk := Sprite2D.new()
 	desk.texture = load("res://assets/desk_fg.png")
 	desk.centered = false
-	desk.position = Vector2(48, 110)
+	desk.position = Vector2(55, 112)
 	world.add_child(desk)
 
 	_build_hotspots()
@@ -103,8 +105,9 @@ func _teesa_frame(idx: int) -> AtlasTexture:
 
 func _make_teesa() -> AnimatedSprite2D:
 	var frames := SpriteFrames.new()
+	# frame 0 is the neutral standing pose; frames 1-5 are the stride cycle.
 	frames.add_animation("walk"); frames.set_animation_speed("walk", 10.0)
-	for i in range(6):
+	for i in range(1, 6):
 		frames.add_frame("walk", _teesa_frame(i))
 	frames.add_animation("idle"); frames.add_frame("idle", _teesa_frame(0))
 	var a := AnimatedSprite2D.new()
@@ -127,7 +130,7 @@ func _make_don() -> AnimatedSprite2D:
 	var a := AnimatedSprite2D.new()
 	a.sprite_frames = frames; a.centered = true
 	a.scale = Vector2(DON_SCALE, DON_SCALE)
-	a.flip_h = true                                # face right, toward the room
+	a.flip_h = false                               # base sprite already faces right, toward the room
 	a.position = DON_FEET - Vector2(0, 89 * DON_SCALE / 2.0)
 	a.play("idle")
 	return a
@@ -135,21 +138,21 @@ func _make_don() -> AnimatedSprite2D:
 # ---------- hotspots ----------
 func _build_hotspots() -> void:
 	hotspots = [
-		{"name": "Fenster", "rect": Rect2(100, 56, 28, 32), "verbs": {
+		{"name": "Fenster", "rect": Rect2(108, 68, 42, 44), "verbs": {
 			"look": [["Teesa", "Es regnet Katzen und Hunde."]]}},
-		{"name": "Bücherregal", "rect": Rect2(150, 54, 62, 82), "verbs": {
+		{"name": "Bücherregal", "rect": Rect2(158, 68, 62, 82), "verbs": {
 			"look": [["Teesa", "Die interessanten Bücher stehen alle im Vorzimmer."],
 					 ["Teesa", "Ein Haufen pietistischer Plunder. Laaangweilig!"]]}},
-		{"name": "Prüfungsordnung", "rect": Rect2(248, 64, 30, 40), "verbs": {
+		{"name": "Prüfungsordnung", "rect": Rect2(248, 70, 32, 46), "verbs": {
 			"look": [["Teesa", "Da steht: „Zum Abschluss seiner Literertour hat der Anwärter…“"],
 					 ["Teesa", "„Zur Zubereitung wird benötigt: 1. Original Teebetanische Yak-Tee(TM)-Blätter“"],
 					 ["Teesa", "„2. Kristallklares, mineralstoffreiches Quellwasser“"],
 					 ["Teesa", "„3. Ein Teekessel oder ein anderes Gefäß“"],
 					 ["Teesa", "„4. Ein angeheizter Ofen“"]]}},
-		{"name": "Durchgangsklappvorrichtung (DK)", "rect": Rect2(285, 60, 24, 80), "verbs": {
+		{"name": "Durchgangsklappvorrichtung (DK)", "rect": Rect2(288, 78, 20, 62), "verbs": {
 			"look": [["Teesa", "Eine Durchgangsklappvorrichtung."]],
 			"use": [["Teesa", "Die führt ins Vorzimmer – aber erst, wenn die Prüfung bestanden ist."]]}},
-		{"name": "Don Kamille", "rect": Rect2(52, 74, 60, 40), "verbs": {
+		{"name": "Don Kamille", "rect": Rect2(50, 80, 60, 42), "verbs": {
 			"look": [["Teesa", "Das ist mein Chef, Hohepriester Don Kamille."]],
 			"talk": "start"}},
 	]
@@ -264,17 +267,20 @@ func _build_ui() -> void:
 
 func _update_teesa() -> void:
 	teesa.flip_h = facing_right
-	teesa.position = teesa_feet - Vector2(0, 40)
+	# draw on whole pixels so the nearest-neighbour upscale doesn't shimmer
+	teesa.position = (teesa_feet - Vector2(0, 40)).round()
 
 func _process(delta: float) -> void:
 	if walking:
 		var to := walk_target - teesa_feet
 		var step := WALK_SPEED * delta
-		facing_right = to.x >= 0
+		if abs(to.x) > 1.0:                         # only flip on real horizontal motion
+			facing_right = to.x >= 0
 		if to.length() <= step:
 			teesa_feet = walk_target
 			walking = false
 			teesa.play("idle")
+			teesa.frame = 0                          # settle on the standing pose
 			if not pending_action.is_empty():
 				var pa := pending_action
 				pending_action = {}
@@ -285,6 +291,10 @@ func _process(delta: float) -> void:
 				teesa.play("walk")
 		teesa_feet.x = clamp(teesa_feet.x, 100, 296)
 		_update_teesa()
+	elif in_dialogue and not awaiting_menu and line_timer > 0.0:
+		line_timer -= delta
+		if line_timer <= 0.0:
+			_step()                                  # timed auto-advance
 
 func _world_mouse() -> Vector2:
 	return world.to_local(get_global_mouse_position())
@@ -390,14 +400,18 @@ func _step() -> void:
 		_end_dialogue(); return
 	var ins: Array = seg[seg_ip]
 	seg_ip += 1
+	line_timer = 0.0
 	match ins[0]:
 		"say":
 			speaker_name = str(ins[1])
-			speech.text = str(ins[2])
+			var text := str(ins[2])
+			speech.text = text
 			speech.add_theme_color_override("font_color",
 				Color(1, 0.85, 0.4) if speaker_name == "Don Kamille" else Color(0.75, 0.85, 1))
 			if speaker_name == "Don Kamille":
 				don.play("talk")
+			# display for a reading-time proportional to length, then auto-advance
+			line_timer = clamp(text.length() * 0.05 + 1.4, 1.8, 6.5)
 		"objective":
 			objective_label.text = str(ins[1])
 			objective_label.visible = true
