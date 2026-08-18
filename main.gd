@@ -82,7 +82,7 @@ func _ready() -> void:
 	var desk := Sprite2D.new()
 	desk.texture = load("res://assets/desk_fg.png")
 	desk.centered = false
-	desk.position = Vector2(55, 112)
+	desk.position = Vector2(56, 106)
 	world.add_child(desk)
 
 	_build_hotspots()
@@ -100,16 +100,23 @@ func _ready() -> void:
 func _teesa_frame(idx: int) -> AtlasTexture:
 	var at := AtlasTexture.new()
 	at.atlas = load("res://assets/teesa_sheet.png")
-	at.region = Rect2((idx % 6) * 40, 0, 40, 80)
+	at.region = Rect2((idx % 6) * 40, 0, 40, 80)   # row 0 = left-facing walk cycle
+	return at
+
+func _teesa_region(col: int, row: int) -> AtlasTexture:
+	var at := AtlasTexture.new()
+	at.atlas = load("res://assets/teesa_sheet.png")
+	at.region = Rect2(col * 40, row * 80, 40, 80)
 	return at
 
 func _make_teesa() -> AnimatedSprite2D:
 	var frames := SpriteFrames.new()
-	# frame 0 is the neutral standing pose; frames 1-5 are the stride cycle.
+	# row 0 frames 1-5 are the stride cycle (frame 0 is a near-standing pose);
+	# row 3 col 0 is the calm standing idle (legs together, hands clasped).
 	frames.add_animation("walk"); frames.set_animation_speed("walk", 10.0)
 	for i in range(1, 6):
 		frames.add_frame("walk", _teesa_frame(i))
-	frames.add_animation("idle"); frames.add_frame("idle", _teesa_frame(0))
+	frames.add_animation("idle"); frames.add_frame("idle", _teesa_region(0, 3))
 	var a := AnimatedSprite2D.new()
 	a.sprite_frames = frames; a.centered = true; a.play("idle")
 	return a
